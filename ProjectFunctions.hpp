@@ -11,6 +11,8 @@
 #include <vector>
 using namespace std;
 
+
+
 void matPrint(vector<vector<double>> &mat);                                                                                                                                        // Declaration
 void vectorPrint(vector<double> &arr);                                                                                                                                             // Declaration
 vector<vector<double>> transposeMatrix(vector<vector<double>> &mat);                                                                                                               // Declaration

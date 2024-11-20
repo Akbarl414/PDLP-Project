@@ -1,0 +1,11 @@
+#!/bin/zsh
+
+highs_root="/Users/akbarlatif/HiGHS"
+
+highs_build_dir="${highs_root}/build"; 
+
+cpp_opt_deb_flag="-g"
+#cpp_opt_deb_flag="-03" 
+
+clang++ ${cpp_opt_deb_flag} -std=c++11 $1 $2 -I "${highs_root}/app/"  -I "${highs_build_dir}" -I "${highs_root}/src/" -L "${highs_build_dir}/lib/" -lhighs
+
