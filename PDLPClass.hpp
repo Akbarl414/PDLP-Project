@@ -6,21 +6,7 @@
 using namespace std;
 
 
-class Rectangle
-{
-    public: 
-    double width; 
-    double length;
-    void initWhy(bool &value);
-    void printDimensions();
-    void printWhy();
 
-
-    private:
-    bool why;
-    void changeWhy();
-
-};
 
 class PDLP
 {
@@ -44,6 +30,7 @@ class PDLP
     vector<double> &bound, vector<double> &lp_matrix_values, vector<int> &lp_matrix_index, 
     vector<int> &lp_matrix_start);
     void runPDHG(bool outputFlag = 1);
+    void runFeasiblePDHG(bool outputFlag = 1);
     void printObjectiveValue();
     void printFullResults();
     
@@ -53,6 +40,7 @@ class PDLP
     bool up; 
     int iterations;
     double objectiveValue;
+    vector<double> reducedCosts;
 
     double matrixNorm();
     void PDHGUpdate();
@@ -61,6 +49,11 @@ class PDLP
     bool updateCriteria();
     void getObjectiveValue();
     void restartSolve();
+    void calculateReducedCosts();
+    bool isFeasible();
+    bool isPrimalFeasible();
+    bool isDualFeasible();
+    bool isComplementarity();
 
 };
 

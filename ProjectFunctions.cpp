@@ -15,24 +15,6 @@
 
 using namespace std;
 
-void Rectangle::printDimensions()
-{
-    printf("The width of the rectangle is %g and the length is %g \n", width, length);
-}
-
-void Rectangle::initWhy(bool &value){
-    why = value;
-}
-
-void Rectangle::printWhy(){
-    printf("Why is %d \n", why);
-    changeWhy();
-}
-
-void Rectangle::changeWhy(){
-    if (why != 0) why = 0;
-    else why = 1;
-}
 // A function that prints the input matrix of any size when called
 void matPrint(vector<vector<double>> &mat)
 {
@@ -74,6 +56,7 @@ void PDLP::assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<d
     y_k.assign(num_rows, 0);
     y_k1.assign(num_rows, 0);
     step_size = 1/matrix_norm;
+    reducedCosts.assign(num_cols, 0);
 }
 
 double PDLP::matrixNorm()
@@ -123,7 +106,7 @@ double PDLP::matrixNorm()
             break;
         iter++;
     }
-    printf("Iteration %4d: w_norm = %g; dl_x_norm = %g\n", int(iter), w_norm, dl_x_norm);
+    //printf("Iteration %4d: w_norm = %g; dl_x_norm = %g\n", int(iter), w_norm, dl_x_norm);
     printf("||A||_2 = %g\n", sqrt(w_norm));
     return sqrt(w_norm);
 }
@@ -222,6 +205,22 @@ void PDLP::runPDHG(bool outputFlag)
         iterations ++;
     }
     getObjectiveValue();
+    if(outputFlag ==1) printf("Restarted PDHG ran with %i interations \n", iterations);
+}
+void PDLP::runFeasiblePDHG(bool outputFlag)
+{
+    if (outputFlag == 1) printf("Running Resatarted PDHG with a step size of %g \n", step_size);
+    up = 0;
+    iterations = 0;
+    while(!up)
+    {
+        PDHGUpdate();
+        restartSolve();
+        up = isFeasible();
+        iterations ++;
+    }
+    getObjectiveValue();
+    if(outputFlag ==1) printf("Restarted PDHG ran with %i interations \n", iterations);
 }
 
 void PDLP::getObjectiveValue()
@@ -274,9 +273,74 @@ void PDLP::restartSolve()
     }
 }
 
+void PDLP::calculateReducedCosts()
+{
+    vector<double> AtYt(num_cols, 0);
+    for (int iCol = 0; iCol < num_cols; iCol++)
+    {
+        double value = 0;
+        for (int columnK = matrix_start[iCol]; columnK < matrix_start[iCol + 1]; columnK++)
+        {
+            int iRow = matrix_index[columnK];
+            value += matrix_values[columnK] * y_k[iRow];
+        }
+        AtYt[iCol] = value;
+    }
+    for(int iCol = 0; iCol < num_cols; iCol++)
+    {
+        reducedCosts[iCol] = costs[iCol] - AtYt[iCol]; 
+    }
 
+}
 
-
+bool PDLP::isPrimalFeasible()
+{
+    
+    vector<double> Ax(num_cols, 0);
+    for (int iCol = 0; iCol < num_cols; iCol++)
+    {
+        for (int column = matrix_start[iCol]; column < matrix_start[iCol + 1]; column++)
+        {
+            Ax[matrix_index[column]] += matrix_values[column] * x_k[iCol];
+        }
+    }
+    
+    for(int iCol =0; iCol < num_cols; iCol++)
+    {
+        if(Ax[iCol] - bounds[iCol] > 0.000000000001) return(0);
+    }
+    return 1;
+}
+bool PDLP::isDualFeasible()
+{
+    for(int iCol = 0; iCol < num_cols; iCol++ )
+    {
+        if(reducedCosts[iCol] < -0.000000000000001) return 0;
+    }
+    return 1;
+}
+bool PDLP::isComplementarity()
+{
+    double complementarity;
+    for(int iCol = 0; iCol < num_cols; iCol++ )
+    {
+        complementarity += x_k[iCol]*abs(reducedCosts[iCol]);
+    }
+    if (complementarity < 0.00000000000001) return 1;
+    return 0; 
+}
+bool PDLP::isFeasible()
+{
+    calculateReducedCosts();
+    // if(iterations%1000 == 0)
+    // {
+    //     printf("After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
+    //     vectorPrint(reducedCosts);
+    // }
+    if(isComplementarity() && isDualFeasible() && isPrimalFeasible()) return 1;
+    if(iterations > 20000) return 1;
+    return 0;
+}
 
 
 

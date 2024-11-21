@@ -41,7 +41,8 @@ int main(int argc, const char *argv[])
         model = argv[1];
     }
     string model_file = "/Users/akbarlatif/Desktop/scriptz/ExampleLPs/100Lp/" + model + ".mps";
-
+    
+    
     /**********************************
     Get all the relevant information from the model into our function
     ************************************/
@@ -62,11 +63,16 @@ int main(int argc, const char *argv[])
                         A_value.data());
 
     printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
- 
+    
     cout<< "PDLP class test \n";
     PDLP model1;
     model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start);
-    model1.runPDHG();
+    if(argc > 2 && stod(argv[2]) != 0) {
+        s = stod(argv[2]);
+        model1.step_size = s;   
+    }
+    model1.runFeasiblePDHG();
+    //model1.runPDHG();
     model1.printObjectiveValue();
 
     cout << "end of test \n";
