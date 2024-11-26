@@ -57,6 +57,13 @@ int main(int argc, const char *argv[])
     vector<int> A_index(num_nonZeros);
     vector<int> A_start(num_cols + 1);
 
+    int test = 0; 
+    for(int i =0; i<10; i++){
+        cout << test << "\t";
+        test += max(test, 10);
+    }
+    printf("\n test value is %i \n", test);
+
     h.setOptionValue("output_flag", false);
     h.getStandardFormLp(num_cols, num_rows, num_nonZeros, offsets, c.data(),
                         b.data(), A_start.data(), A_index.data(),
@@ -74,9 +81,9 @@ int main(int argc, const char *argv[])
     debugFlag = 0;
     if(argc > 3) debugFlag = 1;
     printf("Argc is %i long \n", argc);
-    model1.runFeasiblePDHG(1, debugFlag);
+    //model1.runFeasiblePDHG(1, debugFlag);
     //model1.runPDHG();
-    model1.printObjectiveValue();
+    //model1.printObjectiveValue();
 
     cout << "end of test \n";
 
