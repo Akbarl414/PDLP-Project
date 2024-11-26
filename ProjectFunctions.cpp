@@ -70,12 +70,19 @@ double PDLP::matrixNorm()
     for (;;)
     {
         // Form z = Ax_k
+        double x_norm =0;
         z.assign(num_rows, 0);
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
             for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
                 z[matrix_index[iEl]] += matrix_values[iEl] * xk[iCol];
+                x_norm += max(abs(xk[iCol]), x_norm);
         }
+        double z_norm = 0; 
+        for (int iCol =0; iCol < num_rows; iCol++){
+            z_norm += max(abs(z[iCol]), z_norm);
+        }
+        printf("x_norm is %g and z_norm is %g \n", x_norm, z_norm);
         // Form w = A^Tz
         //
         for (int iCol = 0; iCol < num_cols; iCol++)
@@ -84,12 +91,14 @@ double PDLP::matrixNorm()
             for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
                 w[iCol] += matrix_values[iEl] * z[matrix_index[iEl]];
         }
+        // for(double i : w) printf("%g \t ", abs(i));
+        // break;
         // Normalise w
         w_norm = 0;
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
             w_norm += max(abs(w[iCol]), w_norm);
-            // printf("%g \t", w_norm);
+            //printf("%g \t", w_norm);
         }
         assert(w_norm > 0);
         dl_x_norm = 0;
