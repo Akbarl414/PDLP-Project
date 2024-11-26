@@ -28,7 +28,7 @@ int main(int argc, const char *argv[])
     double offsets;
     Highs h;
     double s;
-
+    bool debugFlag;
     /**********************************
     Assign the relevant model, use AVGAS as default instance
     ************************************/
@@ -40,7 +40,7 @@ int main(int argc, const char *argv[])
     {
         model = argv[1];
     }
-    string model_file = "/Users/akbarlatif/Desktop/scriptz/ExampleLPs/100Lp/" + model + ".mps";
+    string model_file = "/Users/akbarlatif/Desktop/scriptz/ExampleLPs/" + model + ".mps";
     
     
     /**********************************
@@ -71,7 +71,10 @@ int main(int argc, const char *argv[])
         s = stod(argv[2]);
         model1.step_size = s;   
     }
-    model1.runFeasiblePDHG();
+    debugFlag = 0;
+    if(argc > 3) debugFlag = 1;
+    printf("Argc is %i long \n", argc);
+    model1.runFeasiblePDHG(1, debugFlag);
     //model1.runPDHG();
     model1.printObjectiveValue();
 
@@ -134,6 +137,16 @@ int main(int argc, const char *argv[])
     h.run();
     HighsSolution solution = h.getSolution();
 
+    if(debugFlag)
+    {
+        for(int iCol =0; iCol < num_cols; iCol++)
+        {
+        if (cost[iCol] != 0 && solution.col_value[iCol] != model1.x_k[iCol])
+            printf("HiGHS gets %g while PDLP gets %g which is a %g difference \n",solution.col_value[iCol], model1.x_k[iCol], abs(solution.col_value[iCol] - model1.x_k[iCol]));
+        }
+
+    }
+    
     // for (HighsInt iCol = 0; iCol < num_col; iCol++)
     //     printf("Col %1d has optimal primal value %g; dual value %g\n", int(iCol), solution.col_value[iCol], solution.col_dual[iCol]);
     // for (HighsInt iRow = 0; iRow < num_row; iRow++)

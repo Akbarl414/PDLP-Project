@@ -207,8 +207,10 @@ void PDLP::runPDHG(bool outputFlag)
     getObjectiveValue();
     if(outputFlag ==1) printf("Restarted PDHG ran with %i interations \n", iterations);
 }
-void PDLP::runFeasiblePDHG(bool outputFlag)
+void PDLP::runFeasiblePDHG(bool outputFlag, bool debugFlagValue)
 {
+    debugFlag = debugFlagValue; 
+    printf("DebugFlag is %i \n", debugFlag);
     if (outputFlag == 1) printf("Running Resatarted PDHG with a step size of %g \n", step_size);
     up = 0;
     iterations = 0;
@@ -220,7 +222,7 @@ void PDLP::runFeasiblePDHG(bool outputFlag)
         iterations ++;
     }
     getObjectiveValue();
-    if(outputFlag ==1) printf("Restarted PDHG ran with %i interations \n", iterations);
+    if(outputFlag ==1) printf("Restarted PDHG ran with %i iterations \n", iterations);
 }
 
 void PDLP::getObjectiveValue()
@@ -295,7 +297,6 @@ void PDLP::calculateReducedCosts()
 
 bool PDLP::isPrimalFeasible()
 {
-    
     vector<double> Ax(num_cols, 0);
     for (int iCol = 0; iCol < num_cols; iCol++)
     {
@@ -305,17 +306,26 @@ bool PDLP::isPrimalFeasible()
         }
     }
     
-    for(int iCol =0; iCol < num_cols; iCol++)
+    // double sumAx = 0;
+    // double sumB = 0;
+    for(int iCol = 0; iCol < num_cols; iCol++)
     {
-        if(Ax[iCol] - bounds[iCol] > 0.000000000001) return(0);
+        if((Ax[iCol] - bounds[iCol]) > 1.0E-4) return(0);
     }
+
+    // for(int iCol =0; iCol < num_cols; iCol++)
+    // {
+    //    sumAx += Ax[iCol];
+    //    sumB += bounds[iCol];
+    // }
+    // if(abs(sumAx - sumB) > 1.0E-4) return 0;
     return 1;
 }
 bool PDLP::isDualFeasible()
 {
     for(int iCol = 0; iCol < num_cols; iCol++ )
     {
-        if(reducedCosts[iCol] < -0.000000000000001) return 0;
+        if(reducedCosts[iCol] < -1.0E-4) return 0;
     }
     return 1;
 }
@@ -326,23 +336,51 @@ bool PDLP::isComplementarity()
     {
         complementarity += x_k[iCol]*abs(reducedCosts[iCol]);
     }
-    if (complementarity < 0.00000000000001) return 1;
+    if (complementarity < 1.0E-4) return 1;
     return 0; 
 }
 bool PDLP::isFeasible()
 {
     calculateReducedCosts();
-    // if(iterations%1000 == 0)
-    // {
-    //     printf("After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
-    //     vectorPrint(reducedCosts);
-    // }
+    if(debugFlag && iterations%20000 == 0)
+    {
+        printf("After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
+        //vectorPrint(reducedCosts);
+    }
     if(isComplementarity() && isDualFeasible() && isPrimalFeasible()) return 1;
-    if(iterations > 20000) return 1;
+    if(iterations > 2.5E6) {
+        printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
+        printDebug();
+        return 1;
+    }    
     return 0;
 }
 
+void PDLP::printDebug()
+{
+    if(debugFlag)
+    {
+        vector<double> Ax(num_cols, 0);
+        for (int iCol = 0; iCol < num_cols; iCol++)
+        {
+            for (int column = matrix_start[iCol]; column < matrix_start[iCol + 1]; column++)
+            {
+                Ax[matrix_index[column]] += matrix_values[column] * x_k[iCol];
+            }
+        }
 
+        for(int iCol =0; iCol < num_cols; iCol++)
+        {
+            if(Ax[iCol] - bounds[iCol] > 1.0E-4)
+                printf("The difference is %g and our culprit is %i \n", (Ax[iCol] - bounds[iCol]), iCol);
+        }
+        //vectorPrint(x_k);
+    }    
+    // else{
+    //     printf("Nothing happened.");
+    // }
+    
+}
 
 
 

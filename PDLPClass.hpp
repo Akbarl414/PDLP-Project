@@ -30,7 +30,7 @@ class PDLP
     vector<double> &bound, vector<double> &lp_matrix_values, vector<int> &lp_matrix_index, 
     vector<int> &lp_matrix_start);
     void runPDHG(bool outputFlag = 1);
-    void runFeasiblePDHG(bool outputFlag = 1);
+    void runFeasiblePDHG(bool outputFlag = 1, bool debugFlag = 0);
     void printObjectiveValue();
     void printFullResults();
     
@@ -41,6 +41,7 @@ class PDLP
     int iterations;
     double objectiveValue;
     vector<double> reducedCosts;
+    bool debugFlag;
 
     double matrixNorm();
     void PDHGUpdate();
@@ -54,6 +55,7 @@ class PDLP
     bool isPrimalFeasible();
     bool isDualFeasible();
     bool isComplementarity();
+    void printDebug();
 
 };
 
