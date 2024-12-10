@@ -42,6 +42,10 @@ class PDLP
     double objectiveValue;
     vector<double> reducedCosts;
     bool debugFlag;
+    double feasibility_tolerance;
+    double primal_relative_error;
+    double primal_2_norm;
+    double complementarity;
 
     double matrixNorm();
     void PDHGUpdate();

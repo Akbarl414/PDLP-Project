@@ -57,6 +57,7 @@ void PDLP::assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<d
     y_k1.assign(num_rows, 0);
     step_size = 1/matrix_norm;
     reducedCosts.assign(num_cols, 0);
+    feasibility_tolerance = 10E-4;
 }
 
 double PDLP::matrixNorm()
@@ -76,20 +77,20 @@ double PDLP::matrixNorm()
         {
             for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
                 z[matrix_index[iEl]] += matrix_values[iEl] * xk[iCol];
-                x_norm += max(abs(xk[iCol]), x_norm);
+                x_norm = max(abs(xk[iCol]), x_norm);
         }
         double z_norm = 0; 
         for (int iCol =0; iCol < num_rows; iCol++){
-            z_norm += max(abs(z[iCol]), z_norm);
+            z_norm = max(abs(z[iCol]), z_norm);
         }
-        printf("x_norm is %g and z_norm is %g \n", x_norm, z_norm);
+        //printf("x_norm is %g and z_norm is %g \n", x_norm, z_norm);
         // Form w = A^Tz
         //
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
             w[iCol] = 0;
             for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
-                w[iCol] += matrix_values[iEl] * z[matrix_index[iEl]];
+                w[iCol] = matrix_values[iEl] * z[matrix_index[iEl]];
         }
         // for(double i : w) printf("%g \t ", abs(i));
         // break;
@@ -97,7 +98,7 @@ double PDLP::matrixNorm()
         w_norm = 0;
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
-            w_norm += max(abs(w[iCol]), w_norm);
+            w_norm = max(abs(w[iCol]), w_norm);
             //printf("%g \t", w_norm);
         }
         assert(w_norm > 0);
@@ -105,7 +106,7 @@ double PDLP::matrixNorm()
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
             w[iCol] /= w_norm;
-            dl_x_norm += max(abs(w[iCol] - xk[iCol]), dl_x_norm);
+            dl_x_norm = max(abs(w[iCol] - xk[iCol]), dl_x_norm);
         }
         xk = w;
         // This was used when debugging
@@ -306,6 +307,8 @@ void PDLP::calculateReducedCosts()
 
 bool PDLP::isPrimalFeasible()
 {
+    double absolute_error;
+    primal_relative_error = 0;
     vector<double> Ax(num_cols, 0);
     for (int iCol = 0; iCol < num_cols; iCol++)
     {
@@ -314,61 +317,78 @@ bool PDLP::isPrimalFeasible()
             Ax[matrix_index[column]] += matrix_values[column] * x_k[iCol];
         }
     }
-    
+    // Check primal feasibility (absolute and relative norms)
+    primal_2_norm = 0;
+    for (int iCol = 0; iCol < num_cols; iCol++)
+    {
+        absolute_error = abs(Ax[iCol] - bounds[iCol]);
+        primal_2_norm += pow(absolute_error, 2);
+        primal_relative_error = max(primal_relative_error, absolute_error);
+       
+    }
+    if (sqrt(primal_2_norm) > feasibility_tolerance && primal_relative_error > feasibility_tolerance)
+            return false;  // Not feasible
+    return true;  // Primal feasible
+
+
+
     // double sumAx = 0;
     // double sumB = 0;
-    for(int iCol = 0; iCol < num_cols; iCol++)
-    {
-        if((Ax[iCol] - bounds[iCol]) > 1.0E-4) return(0);
-    }
-
-    // for(int iCol =0; iCol < num_cols; iCol++)
+    // for(int iCol = 0; iCol < num_cols; iCol++)
     // {
+    //     if((Ax[iCol] - bounds[iCol]) > tolerance) return(false); // Complete calculation & work out relative and absolute norms 
+    // }
+
+    // for(int iCol =0; iCol < num_cols; iCol++) 
+      // {
     //    sumAx += Ax[iCol];
     //    sumB += bounds[iCol];
     // }
     // if(abs(sumAx - sumB) > 1.0E-4) return 0;
-    return 1;
+    //return true;
 }
+
 bool PDLP::isDualFeasible()
 {
     for(int iCol = 0; iCol < num_cols; iCol++ )
     {
-        if(reducedCosts[iCol] < -1.0E-4) return 0;
+        if(reducedCosts[iCol] < -feasibility_tolerance) return false;
     }
-    return 1;
+    return true;
 }
 bool PDLP::isComplementarity()
 {
-    double complementarity;
+    complementarity = 0;
     for(int iCol = 0; iCol < num_cols; iCol++ )
     {
         complementarity += x_k[iCol]*abs(reducedCosts[iCol]);
     }
-    if (complementarity < 1.0E-4) return 1;
-    return 0; 
+    if (complementarity < feasibility_tolerance) return true;  //Create a tolerance for the feasibility criteria
+    return false; 
 }
 bool PDLP::isFeasible()
 {
     calculateReducedCosts();
-    if(debugFlag && iterations%20000 == 0)
+    if(debugFlag && iterations%20000 == 0) //Include the norms and completmentarity 
     {
-        printf("After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
+        //printf("After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal absolute(2-norm) feasibility is %g and relative is %g \n", iterations, complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
+        printf("Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %i, %g, %i, %g , %g \n", iterations, complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
         //vectorPrint(reducedCosts);
     }
-    if(isComplementarity() && isDualFeasible() && isPrimalFeasible()) return 1;
+    if(isComplementarity() && isDualFeasible() && isPrimalFeasible()) return true;
     if(iterations > 2.5E6) {
-        printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %i, Dual feasibility is %i, Primal feasibility is %i \n", iterations, isComplementarity(), isDualFeasible(), isPrimalFeasible());
+        printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal feasibility is %i \n", iterations, complementarity, isDualFeasible(), isPrimalFeasible());
         printDebug();
-        return 1;
+        return true;
     }    
-    return 0;
+    return false;
 }
 
 void PDLP::printDebug()
 {
     if(debugFlag)
     {
+        double absolute_error;
         vector<double> Ax(num_cols, 0);
         for (int iCol = 0; iCol < num_cols; iCol++)
         {
@@ -378,10 +398,20 @@ void PDLP::printDebug()
             }
         }
 
+        double two_norm_squared = 0;
+        for (int iCol = 0; iCol < num_cols; iCol++)
+        {
+        absolute_error = abs(Ax[iCol] - bounds[iCol]);
+        two_norm_squared += pow(absolute_error, 2);
+        primal_relative_error = max(primal_relative_error, absolute_error);
+        
+        // If either absolute or relative norm is violated, return false
+       
+        }
         for(int iCol =0; iCol < num_cols; iCol++)
         {
-            if(Ax[iCol] - bounds[iCol] > 1.0E-4)
-                printf("The difference is %g and our culprit is %i \n", (Ax[iCol] - bounds[iCol]), iCol);
+            if(Ax[iCol] - bounds[iCol] > feasibility_tolerance)
+                printf("The difference is %g and our culprit is %i \n", (sqrt(two_norm_squared)), iCol);
         }
         //vectorPrint(x_k);
     }    

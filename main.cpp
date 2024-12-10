@@ -81,9 +81,9 @@ int main(int argc, const char *argv[])
     debugFlag = 0;
     if(argc > 3) debugFlag = 1;
     printf("Argc is %i long \n", argc);
-    //model1.runFeasiblePDHG(1, debugFlag);
+    model1.runFeasiblePDHG(1, debugFlag);
     //model1.runPDHG();
-    //model1.printObjectiveValue();
+    model1.printObjectiveValue();
 
     cout << "end of test \n";
 
