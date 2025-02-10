@@ -25,15 +25,25 @@ class PDLP
     vector<double> x_k1;
     vector<double> y_k;
     vector<double> y_k1;
+    vector<double> d_c;
+    vector<double> d_r;
+    vector<double> diag_c;
+    vector<double> diag_r;
+    vector<double> scaled_matrix_values;
+
 
     void assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<double> &cost,
     vector<double> &bound, vector<double> &lp_matrix_values, vector<int> &lp_matrix_index, 
     vector<int> &lp_matrix_start);
+    void initialiseModel();
     void runPDHG(bool outputFlag = 1);
     void runFeasiblePDHG(bool outputFlag = 1, bool debugFlag = 0);
     void printObjectiveValue();
     void printFullResults();
-    
+    void ruiz_Rescale();
+    void run_Rescale();
+
+
 
 
     private:
@@ -43,10 +53,26 @@ class PDLP
     vector<double> reducedCosts;
     bool debugFlag;
     double feasibility_tolerance;
+    double primal_feasibility_tolerance;
     double primal_relative_error;
     double primal_2_norm;
     double complementarity;
+    double adjusted_complementarity;
+    double bounds_2_norm;
+    double costs_2_norm;
+    double dual_inf_norm;
+    bool rescale_status; 
+    
+    vector<double> post_scaled_x_k;
+    vector<double> post_scaled_y_k;
+    vector<double> orignal_costs;
+    vector<double> orignal_bounds;
+    vector<double> orignal_matrix_values;
 
+
+
+
+    void initialiseNorms();
     double matrixNorm();
     void PDHGUpdate();
     vector<double> vectorSubtraction(vector<double> &vect1, vector<double> &vect2);
@@ -60,6 +86,11 @@ class PDLP
     bool isDualFeasible();
     bool isComplementarity();
     void printDebug();
+    void inverse_sqrt(vector<double> &vect);
+    bool needRuizRescale(vector<double> &vect_c, vector<double> &vect_r);
+    bool needRuizRescale();
+    void scaleLP();
+    void unScaleLP();
 
 };
 

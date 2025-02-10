@@ -24,12 +24,20 @@ void matPrint(vector<vector<double>> &mat)
         {
             cout << mat[i][j] << "\t";
         }
-        cout << endl;
+        cout << endl << endl;
     }
 }
 
 // A function that prints a the input 2x1 array when called
 void vectorPrint(vector<double> &arr)
+{
+    for (int i = 0; i < arr.size(); i++)
+    {
+        cout << arr[i] << "\t";
+    }
+    cout << endl;
+}
+void vectorPrint(vector<int> &arr)
 {
     for (int i = 0; i < arr.size(); i++)
     {
@@ -50,16 +58,45 @@ void PDLP::assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<d
     matrix_values = lp_matrix_values;
     matrix_index = lp_matrix_index;
     matrix_start = lp_matrix_start;
-    matrix_norm = matrixNorm();
+    scaled_matrix_values.resize(num_nonZeros);
     x_k.assign(num_cols, 0);
     x_k1.assign(num_cols, 0);
     y_k.assign(num_rows, 0);
     y_k1.assign(num_rows, 0);
-    step_size = 1/matrix_norm;
     reducedCosts.assign(num_cols, 0);
     feasibility_tolerance = 10E-4;
+    primal_feasibility_tolerance = 10E-3;
+    // matrix_norm = matrixNorm();
+    // step_size = 1/matrix_norm;
+    // initialiseNorms();
 }
 
+void PDLP::run_Rescale(){
+    rescale_status = true; 
+    ruiz_Rescale();
+    scaleLP();
+}
+
+void PDLP::initialiseModel(){
+    matrix_norm = matrixNorm();
+    step_size = 1/matrix_norm;
+    initialiseNorms();
+}
+
+
+
+
+void PDLP::initialiseNorms(){
+    double bounds_squared_err = 0; 
+    double costs_squared_err = 0; 
+    for(int iCol = 0; iCol < num_cols; iCol++){
+        bounds_squared_err += pow(bounds[iCol],2);
+        costs_squared_err += pow(costs[iCol], 2);
+    }
+    bounds_2_norm = sqrt(bounds_squared_err);
+    costs_2_norm = sqrt(costs_squared_err); 
+    printf("The 2_norm of the bounds is %g, and the 2_norm of the costs is %g \n", bounds_2_norm, costs_2_norm);
+}
 double PDLP::matrixNorm()
 {
     vector<double> xk, w, z;
@@ -71,46 +108,33 @@ double PDLP::matrixNorm()
     for (;;)
     {
         // Form z = Ax_k
-        double x_norm =0;
+        //double x_norm =0;
         z.assign(num_rows, 0);
-        for (int iCol = 0; iCol < num_cols; iCol++)
-        {
-            for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
+        for (int iCol = 0; iCol < num_cols; iCol++){
+            for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){    
                 z[matrix_index[iEl]] += matrix_values[iEl] * xk[iCol];
-                x_norm = max(abs(xk[iCol]), x_norm);
+            }
         }
-        double z_norm = 0; 
-        for (int iCol =0; iCol < num_rows; iCol++){
-            z_norm = max(abs(z[iCol]), z_norm);
-        }
-        //printf("x_norm is %g and z_norm is %g \n", x_norm, z_norm);
-        // Form w = A^Tz
-        //
-        for (int iCol = 0; iCol < num_cols; iCol++)
-        {
+        
+        for (int iCol = 0; iCol < num_cols; iCol++){
             w[iCol] = 0;
-            for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++)
-                w[iCol] = matrix_values[iEl] * z[matrix_index[iEl]];
+            for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){  
+                  w[iCol] += matrix_values[iEl] * z[matrix_index[iEl]];
+            }
         }
-        // for(double i : w) printf("%g \t ", abs(i));
-        // break;
-        // Normalise w
+        
         w_norm = 0;
-        for (int iCol = 0; iCol < num_cols; iCol++)
-        {
+        for (int iCol = 0; iCol < num_cols; iCol++){
             w_norm = max(abs(w[iCol]), w_norm);
-            //printf("%g \t", w_norm);
         }
         assert(w_norm > 0);
         dl_x_norm = 0;
-        for (int iCol = 0; iCol < num_cols; iCol++)
-        {
+        for (int iCol = 0; iCol < num_cols; iCol++){
             w[iCol] /= w_norm;
             dl_x_norm = max(abs(w[iCol] - xk[iCol]), dl_x_norm);
         }
         xk = w;
         // This was used when debugging
-        //
         // printf("Iteration %4d: w_norm = %g; dl_x_norm = %g\n", int(iter), w_norm, dl_x_norm);
         if (iter > 1000 || dl_x_norm < 1e-10)
             break;
@@ -124,22 +148,19 @@ double PDLP::matrixNorm()
 void PDLP::PDHGUpdate()
 {
     vector<double> AtYk(num_cols, 0);
-    for (int iCol = 0; iCol < num_cols; iCol++)
-    {
+    
+    for (int iCol = 0; iCol < num_cols; iCol++){
         double value = 0;
-        for (int columnK = matrix_start[iCol]; columnK < matrix_start[iCol + 1]; columnK++)
-        {
+        for (int columnK = matrix_start[iCol]; columnK < matrix_start[iCol + 1]; columnK++){
             int iRow = matrix_index[columnK];
             value += matrix_values[columnK] * y_k[iRow];
         }
         AtYk[iCol] = value;
     }
 
-    for (int iCol = 0; iCol < num_cols; iCol++)
-    {
+    for (int iCol = 0; iCol < num_cols; iCol++){
         x_k1[iCol] = ((x_k[iCol] + step_size * AtYk[iCol] - step_size * costs[iCol]));
-        if (x_k1[iCol] < 0)
-        {
+        if (x_k1[iCol] < 0){
             x_k1[iCol] = 0;
         }
     }
@@ -182,7 +203,7 @@ double PDLP::vectorEuclidianNorm(vector<double> &vect)
         norm_squared += pow(vect[index], 2);
     }
     return sqrt(norm_squared);
-}
+}  
 
 bool PDLP::updateCriteria()
 {
@@ -226,11 +247,14 @@ void PDLP::runFeasiblePDHG(bool outputFlag, bool debugFlagValue)
     iterations = 0;
     while(!up)
     {
+        //vectorPrint(x_k);
         PDHGUpdate();
         restartSolve();
         up = isFeasible();
         iterations ++;
     }
+    if(rescale_status) unScaleLP();
+    // if(!rescale_status) vectorPrint(x_k);
     getObjectiveValue();
     if(outputFlag ==1) printf("Restarted PDHG ran with %i iterations \n", iterations);
 }
@@ -247,10 +271,12 @@ void PDLP::getObjectiveValue()
 
 void PDLP::printObjectiveValue()
 {
+    getObjectiveValue();
     if(!up) cout << "Make sure you have Run the model \n"; 
     else
     {
-        printf("Our optimal objective value is: %g \n", objectiveValue);
+        printf("Obj, Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %g, %i, %g, %i, %g , %g \n", objectiveValue,iterations, complementarity, isDualFeasible(), (primal_2_norm), primal_relative_error);
+        //printf("Our optimal objective value is: %g \n", objectiveValue);
     }   
 }
 
@@ -302,12 +328,12 @@ void PDLP::calculateReducedCosts()
     {
         reducedCosts[iCol] = costs[iCol] - AtYt[iCol]; 
     }
-
 }
 
 bool PDLP::isPrimalFeasible()
 {
     double absolute_error;
+    double bound_square_error = 0;
     primal_relative_error = 0;
     vector<double> Ax(num_cols, 0);
     for (int iCol = 0; iCol < num_cols; iCol++)
@@ -319,63 +345,51 @@ bool PDLP::isPrimalFeasible()
     }
     // Check primal feasibility (absolute and relative norms)
     primal_2_norm = 0;
-    for (int iCol = 0; iCol < num_cols; iCol++)
-    {
+    for (int iCol = 0; iCol < num_cols; iCol++){
         absolute_error = abs(Ax[iCol] - bounds[iCol]);
         primal_2_norm += pow(absolute_error, 2);
-        primal_relative_error = max(primal_relative_error, absolute_error);
-       
-    }
-    if (sqrt(primal_2_norm) > feasibility_tolerance && primal_relative_error > feasibility_tolerance)
-            return false;  // Not feasible
+    } 
+
+    primal_relative_error = sqrt(primal_2_norm)/bounds_2_norm;
+    if (sqrt(primal_2_norm) > primal_feasibility_tolerance && primal_relative_error > primal_feasibility_tolerance) return false;  // Not feasible
     return true;  // Primal feasible
-
-
-
-    // double sumAx = 0;
-    // double sumB = 0;
-    // for(int iCol = 0; iCol < num_cols; iCol++)
-    // {
-    //     if((Ax[iCol] - bounds[iCol]) > tolerance) return(false); // Complete calculation & work out relative and absolute norms 
-    // }
-
-    // for(int iCol =0; iCol < num_cols; iCol++) 
-      // {
-    //    sumAx += Ax[iCol];
-    //    sumB += bounds[iCol];
-    // }
-    // if(abs(sumAx - sumB) > 1.0E-4) return 0;
-    //return true;
 }
 
 bool PDLP::isDualFeasible()
 {
-    for(int iCol = 0; iCol < num_cols; iCol++ )
-    {
-        if(reducedCosts[iCol] < -feasibility_tolerance) return false;
+    bool dual_feasibility = 0; 
+    dual_inf_norm = -1; 
+    for(int iCol = 0; iCol < num_cols; iCol++ ){
+        dual_inf_norm = max(reducedCosts[iCol], dual_inf_norm); 
+        // if((reducedCosts[iCol]/costs_2_norm) < -feasibility_tolerance) return false;
     }
+    if(dual_inf_norm < -feasibility_tolerance) return false;
     return true;
 }
-bool PDLP::isComplementarity()
-{
+bool PDLP::isComplementarity(){
     complementarity = 0;
-    for(int iCol = 0; iCol < num_cols; iCol++ )
-    {
+    adjusted_complementarity = 0; 
+    for(int iCol = 0; iCol < num_cols; iCol++ ){
         complementarity += x_k[iCol]*abs(reducedCosts[iCol]);
+        adjusted_complementarity += x_k[iCol]*abs(reducedCosts[iCol]/costs_2_norm);
     }
-    if (complementarity < feasibility_tolerance) return true;  //Create a tolerance for the feasibility criteria
+
+    if (complementarity < feasibility_tolerance) return true;  
     return false; 
 }
-bool PDLP::isFeasible()
-{
+bool PDLP::isFeasible(){
     calculateReducedCosts();
+    if(isPrimalFeasible() && isComplementarity() && isDualFeasible()) return true;
     if(debugFlag && iterations%20000 == 0) //Include the norms and completmentarity 
     {
+        getObjectiveValue();
+        isPrimalFeasible(); isDualFeasible(); isComplementarity();
         //printf("After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal absolute(2-norm) feasibility is %g and relative is %g \n", iterations, complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
-        printf("Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %i, %g, %i, %g , %g \n", iterations, complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
+        //printf("Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %i, %g, %i, %g , %g \n", iterations, complementarity, isDualFeasible(), (primal_2_norm), primal_relative_error);
+        printf("Obj, Iterations, Complementarity, adjusted_Complmentarity Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %g, %i, %g, %g, %i, %g , %g \n", objectiveValue,iterations, complementarity, adjusted_complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
+
         //vectorPrint(reducedCosts);
     }
-    if(isComplementarity() && isDualFeasible() && isPrimalFeasible()) return true;
     if(iterations > 2.5E6) {
         printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal feasibility is %i \n", iterations, complementarity, isDualFeasible(), isPrimalFeasible());
         printDebug();
@@ -408,12 +422,12 @@ void PDLP::printDebug()
         // If either absolute or relative norm is violated, return false
        
         }
-        for(int iCol =0; iCol < num_cols; iCol++)
-        {
-            if(Ax[iCol] - bounds[iCol] > feasibility_tolerance)
-                printf("The difference is %g and our culprit is %i \n", (sqrt(two_norm_squared)), iCol);
-        }
-        //vectorPrint(x_k);
+        // for(int iCol =0; iCol < num_cols; iCol++)
+        // {
+        //     if(Ax[iCol] - bounds[iCol] > feasibility_tolerance)
+        //         printf("The difference is %g and our culprit is %i \n", (sqrt(two_norm_squared)), iCol);
+        // }
+        // //vectorPrint(x_k);
     }    
     // else{
     //     printf("Nothing happened.");
@@ -422,13 +436,237 @@ void PDLP::printDebug()
 }
 
 
+void PDLP::ruiz_Rescale(){ 
+    const double scale_epsilon = 1e-12;
+    //initialize the diagonal vectors and the 1/diagonal values. 
+    // d_r.assign(num_rows, 0);
+    // d_c.assign(num_cols, 0);
+    diag_c.assign(num_cols,0);
+    diag_r.assign(num_rows,0);
+    
+    //printf("%i need to rescale \n", needRuizRescale());
+
+    scaled_matrix_values = matrix_values;
+    
+    //Reset the values of d_r and d_c to be the identity matrix values since d_r(0) and d_c(0) are identity matricies
+    d_r.assign(num_rows, 1);
+    d_c.assign(num_cols, 1);
+   // printf("The scaled matrix values are: \n");
+    //vectorPrint(scaled_matrix_values);    
+    // cout << "Sense check: mat A is: \n";
+    //vector<vector<double>> mat_A = sparseColumn_to_full(matrix_start, matrix_index, scaled_matrix_values);
+    //matPrint(mat_A);
+    // vectorPrint(scaled_matrix_values);
+
+
+    int rr_iterations = 0;
+    for(int rescale_iterations = 0;rescale_iterations <4; rescale_iterations ++){
+        //Construct the value arrays for the diagonal matricies
+        //  for(int iRow = 0; iRow < num_rows; iRow ++){
+        //     diag_r[iRow] = 0;
+        // }
+        for (int iCol = 0; iCol < num_cols; iCol++){
+            // diag_c[iCol] = 0;
+            for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){    
+                int iRow = matrix_index[iEl];
+                diag_c[iCol] = max(abs(scaled_matrix_values[iEl]), diag_c[iCol]);
+                diag_r[iRow] = max(abs(scaled_matrix_values[iEl]), diag_r[iRow]);
+            }
+            // printf("value %i of diag_c is %g \t", iCol, diag_c[iCol]);
+            // cout << endl;
+            diag_c[iCol] = sqrt(max(diag_c[iCol],scale_epsilon)); //make diag_c = sqrt(D_C)
+        }
+        
+        for(int iRow = 0 ; iRow < num_rows; iRow ++ ){
+            diag_r[iRow] = sqrt(max(diag_r[iRow], scale_epsilon)); //make diag_r = sqrt(D_R)
+        }
+        // cout << "vector diag_r is: \n";  // diag_4 = sqrt(D_R)
+        // vectorPrint(diag_r);
+        // cout << "vector diag_c is: \n"; // diag_c = sqrt(D_C)
+        // vectorPrint(diag_c);
+
+       //Multiply the values of A~ = A_k * D_C^-1
+        for(int iCol = 0; iCol < num_cols; iCol ++){
+            for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl ++){
+                double mult_factor = 1/diag_c[iCol]; //1/D_C
+                scaled_matrix_values[iEl] = scaled_matrix_values[iEl]*(mult_factor); 
+                // printf("we are multiplying %g and %g \t",matrix_values[iEl], diag_c[iCol]); //Verify the multiplication
+            }            
+        }
+
+        //Now multiplying the  A_hat = D_R^-1 * A~     
+        for(int iCol = 0 ; iCol < num_cols; iCol ++ ){
+            for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol +1]; iEl++){
+                double value = scaled_matrix_values[iEl];
+                double multiplier = 1/diag_r[matrix_index[iEl]];
+                scaled_matrix_values[iEl] = value*(multiplier);    
+            }   
+        }
+
+        double max_dr = 0;
+        double max_dc = 0;
+        double min_dr = 1;
+        double min_dc = 1;
+        
+        
+        //Set the d_r values for the next iteration
+        for(int iCol = 0; iCol < num_cols; iCol ++){
+            double one_over = 1/diag_c[iCol];
+            d_c[iCol] = d_c[iCol]*(one_over); 
+            max_dc = max(one_over, max_dc);
+            min_dc = min(one_over, min_dc);
+            diag_c[iCol] = 0;
+
+        }
+        for(int iRow = 0; iRow < num_rows; iRow ++){
+            double value = 1/diag_r[iRow];
+            d_r[iRow] = d_r[iRow]*(value);
+            max_dr = max(value, max_dr);
+            min_dr = min(value, min_dr);
+            diag_r[iRow] = 0;
+        }
+        // cout << "vector d_r is: \n";
+        // vectorPrint(d_r);
+        // cout << "vector d_c is: \n";
+        // vectorPrint(d_c);
+        printf("In iteration %i D_rk takes values between (%g,%g) and D_ck takes (%g,%g) \n", rescale_iterations, min_dr, max_dr, min_dc, max_dc);
+        rr_iterations = rescale_iterations;
+    }
+    printf("The Ruiz Rescaling went through %i iterations \n", rr_iterations);
+    // cout << "vector d_r is: \n";
+    // vectorPrint(d_r);
+    // cout << "vector d_c is: \n";
+    // vectorPrint(d_c);
+    // cout << endl << endl;
+    // printf("The scaled matrix values are: \n");
+    // vectorPrint(scaled_matrix_values);
+    //A sense check :
+    for(int index = 0; index < num_nonZeros; index++ ){
+        if(abs(scaled_matrix_values[index]) > 1.00000000001) printf("Index %i at value %g \t ", index, abs(scaled_matrix_values[index]));
+    }
+    cout<<endl;
+}
+
+//On test matrix t I hit saddle point at about 20 iterations
+
+
+bool PDLP::needRuizRescale(){
+    double epsilon = 0.1;
+    double max_row_value = 0; 
+    double max_col_value = 0; 
+
+    vector<double> vect_r; 
+    vect_r.assign(num_rows, 0); 
+    vector<double> vect_c;
+    vect_c.assign(num_cols, 0); 
+
+    //Now check to see if the matrix even needs to be scaled. 
+    for (int iCol = 0; iCol < num_cols; iCol++){
+        for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){    
+            int iRow = matrix_index[iEl];
+            vect_c[iCol] = max(abs(matrix_values[iEl]), vect_c[iCol]);
+            vect_r[iRow] = max(abs(matrix_values[iEl]), vect_r[iRow]);
+        }
+    }
+
+    for(int iRow = 0; iRow < num_rows; iRow ++){
+        max_row_value = max(abs(1 - vect_r[iRow]), max_row_value);
+    }
+    
+
+    for(int iCol = 0; iCol < num_cols; iCol++){
+        max_col_value = max(abs(1 - vect_c[iCol]), max_col_value);
+        //printf("The max_column value at index %i is %g \n", iCol, max_col_value);
+    }
+    //printf("The max row value is %g, and the max column value is %g \n",max_row_value, max_col_value);
+    // double check_row_value = abs(1 - max_row_value);
+    // double check_col_value = abs(1 - max_col_value);
+    //printf("The row difference is %g, and the column difference is %g. \n",check_row_value, check_col_value);
+    // printf("Our max_col_value is %g, and our max_row value is %g \n", max_col_value, max_row_value);
+    if(max_col_value < epsilon && max_row_value < epsilon) return false;
+    return true;
+}
+
+
+void PDLP::scaleLP(){
+    //This stuff needs to be rescaled. 
+    orignal_costs = costs;
+    orignal_bounds = bounds;
+    orignal_matrix_values = matrix_values;
+    matrix_values = scaled_matrix_values; 
+    for(int iCol = 0; iCol < num_cols; iCol ++){
+        costs[iCol] = (d_c[iCol]) * costs[iCol];
+    }
+    for(int iRow = 0; iRow < num_rows; iRow ++){
+        bounds[iRow] = (d_r[iRow])* bounds[iRow];
+    }
+    // cout << "Our orignal costs are: \n";
+    // vectorPrint(orignal_costs);
+    // cout << "Scaled costs are: \n";
+    // vectorPrint(costs);
+    // cout << "Our orignal bounds are: \n";
+    // vectorPrint(orignal_bounds);
+    // cout << "Scaled bounds are: \n";
+    // vectorPrint(bounds);
+}
+
+void PDLP::unScaleLP(){
+    post_scaled_x_k.resize(num_cols);
+    post_scaled_y_k.resize(num_rows);
+    // cout << "Our scaled x_k is: " << endl;
+    // vectorPrint(x_k);
+    for(int iCol = 0; iCol < num_cols; iCol ++){
+        post_scaled_x_k[iCol] = (1/d_c[iCol])*x_k[iCol];
+    }
+    for(int iRow = 0; iRow < num_rows; iRow ++){
+        post_scaled_y_k[iRow] = (1/d_r[iRow])*y_k[iRow];
+    }
+    bounds = orignal_bounds;
+    // cout << "Our post scaled x_k is: " << endl;
+    // vectorPrint(post_scaled_x_k);
+    // // cout << "Bounds are back to: \n";
+    // vectorPrint(bounds);
+    // costs = orignal_costs; 
+    // cout << "Costs are back to: \n";
+    // vectorPrint(costs);
+
+}
 
 
 
+// bool PDLP::needRuizRescale(vector<double> &vect_c, vector<double> &vect_r){
+//     double epsilon = 0.5;
+//     double max_row_value = 0; 
+//     double max_col_value = 0; 
+
+//     for(int iRow = 0; iRow < num_rows; iRow ++){
+//         max_row_value = max(abs(1 - vect_r[iRow]), max_row_value);
+//     }
+    
+
+//     for(int iCol = 0; iCol < num_cols; iCol++){
+//         max_col_value = max(abs(1 - vect_c[iCol]), max_col_value);
+//         printf("The max_column value at index %i is %g \n", iCol, max_col_value);
+//     }
+//     //printf("The max row value is %g, and the max column value is %g \n",max_row_value, max_col_value);
+//     // double check_row_value = abs(1 - max_row_value);
+//     // double check_col_value = abs(1 - max_col_value);
+//     //printf("The row difference is %g, and the column difference is %g. \n",check_row_value, check_col_value);
+//     printf("Our max_col_value is %g, and our max_row value is %g \n", max_col_value, max_row_value);
+//     if(max_col_value < epsilon && max_row_value < epsilon) return false;
+//     return true;
+// }
 
 
 
-
+void PDLP::inverse_sqrt(vector<double> &vect){
+    for(int i = 0; i < vect.size(); i ++){
+        vect[i] = (1/ sqrt(vect[i]));
+    }
+    // for(double value: vect){
+    //     value = (1/ sqrt(value));
+    // }
+}
 
 
 
@@ -472,45 +710,12 @@ vector<vector<double>> transposeMatrix(vector<vector<double>> &mat)
     return trans;
 }
 
-// RETURNS a boolean that verifies size of your vector and matrix line up so they can be multiplied together
-bool sizeMatch(vector<vector<double>> &mat, vector<double> &arr)
-{
-    if (mat[0].size() != arr.size())
-    {
-        return 0;
-    }
-    else
-    {
-        return 1;
-    }
-}
 
-// A function that RETURNS the product of the inputted matrix and vector, given their dimensions fit, if not it returns (0,0)
-vector<double> matrixArrayMult(vector<vector<double>> &mat, vector<double> &arr)
-{
-    // cout << "check size match" << sizeMatch(mat, arr) << endl;
-    assert(sizeMatch(mat, arr));
-    vector<double> result(mat.size(), 0);
-    for (int i = 0; i < mat.size(); i++)
-    {
-        for (int j = 0; j < mat[0].size(); j++)
-        {
-            result[i] += mat[i][j] * arr[j];
-        }
-    }
-    return result;
-}
 
-// A functions that RETURNS the product of the inputted matrix, vector, and double
-vector<double> matMult_middleterm(vector<vector<double>> &mat, vector<double> &arr, double &s)
-{
-    vector<double> result(matrixArrayMult(mat, arr));
-    for (int i = 0; i < result.size(); i++)
-    {
-        result[i] = result[i] * s;
-    }
-    return result;
-}
+
+
+
+
 
 // A function that runs the update for the PDHG increments
 // Its inputs are x_k and y_k the current values of x and y; x_k1 & y_k1 the next values of x & y, the coefficient matrix A, stepsize s, and vectors b &c
@@ -874,61 +1079,166 @@ vector<vector<double>> sparseColumn_to_full(vector<int> &start, vector<int> &ind
     return matrix;
 }
 
-void printPrimalDual(vector<double> &x_k, vector<double> &y_k)
-{
-    cout << "Optimal x \n";
-    for (double i : x_k)
-    {
-        printf("%g \t", round(i));
-    }
-    cout << endl;
 
-    cout << "Optimal y" << endl;
-    vectorPrint(y_k);
-}
 
-void printObjectiveValue(vector<double> &x_k, vector<double> &c)
-{
-    double objectiveValue;
-    for (int i = 0; i < c.size(); i++)
-    {
-        objectiveValue += c[i] * x_k[i];
-    }
-    printf("Our optimal objective value is: %g \n", objectiveValue);
-}
 
-void printAllResults(vector<double> &x_k, vector<double> &y_k, vector<double> &c)
-{
-    double objectiveValue;
-    for (int i = 0; i < c.size(); i++)
-    {
-        objectiveValue += c[i] * x_k[i];
-    }
-    printf("Our optimal objective value is: %g \n", objectiveValue);
-    cout << "Optimal x \n";
-    for (double i : x_k)
-    {
-        printf("%g \t", round(i));
-    }
-    cout << endl;
+//A commented out version of the rescale code just incase
+// //void PDLP::ruiz_Rescale(){ 
+//     //initialize the diagonal vectors and the 1/diagonal values. 
+//     d_r.assign(num_rows, 0);
+//     d_c.assign(num_cols, 0);
+//     diag_c.assign(num_cols,0);
+//     diag_r.assign(num_rows,0);
+    
+//     //Now check to see if the matrix even needs to be scaled. 
+//     // for (int iCol = 0; iCol < num_cols; iCol++){
+//     //     for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){    
+//     //         int iRow = matrix_index[iEl];
+//     //         d_c[iCol] = max(abs(matrix_values[iEl]), d_c[iCol]);
+//     //         d_r[iRow] = max(abs(matrix_values[iEl]), d_r[iRow]);
+//     //     }
+//     // }
+//     //A sense check of how our matrix A looks
+//     //cout << "Sense check: mat A is: \n";
+//     // vector<vector<double>> mat_A = sparseColumn_to_full(matrix_start, matrix_index, matrix_values);
+//     // matPrint(mat_A);
+//     //vectorPrint(matrix_values);
 
-    cout << "Optimal y" << endl;
-    vectorPrint(y_k);
-}
 
-// void passHighs(vector<double> &matrix_values, vector<int> &vector_start, vector<int> &vector_index, vector<int> &costs, vector<int> &bounds, Highs h){
-//     h.getLP().a.matrix_
-// }
+//     // //A way to verify values of the initial d_r and d_c
+//     // cout << "vector d_r is: \n";
+//     // vectorPrint(d_r);
+//     // cout << "vector d_c is: \n";
+//     // vectorPrint(d_c);
+    
+//     printf("%i need to rescale \n", needRuizRescale());
 
-// double  round_to(double &value, double &precision){
-//     return round(value/precision)*(precision);
-// }
+//     scaled_matrix_values = matrix_values;
+    
+//     //Reset the values of d_r and d_c to be the identity matrix values since d_r(0) and d_c(0) are identity matricies
+//     d_r.assign(num_rows, 1);
+//     d_c.assign(num_cols, 1);
+    
+    
+//     int rescale_iterations = 0;
+    
+//     bool rrScale = 1; 
+//     while(needRuizRescale()){
+//         //To verify whether we are computing the correct values of the diagonal matricies
+//         // cout<<"our pre-1/sqrt() diag_c is:" <<endl;
 
-// void round_vector(vector<double> &vec, double &precision ){
-//     //vector<double> result(vec.size(),0);
-//     for(int i = 0; i < vec.size(); i++){
-//         vec[i] = round(vec[i]/precision)*(precision);
+//         //Construct the value arrays for the diagonal matricies
+//         for (int iCol = 0; iCol < num_cols; iCol++){
+//             for (int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl++){    
+//                 int iRow = matrix_index[iEl];
+//                 diag_c[iCol] = max(abs(scaled_matrix_values[iEl]), diag_c[iCol]);
+//                 diag_r[iRow] = max(abs(scaled_matrix_values[iEl]), diag_r[iRow]);
+//             }
+//             //printf("%g \t", diag_c[iCol]);
+//             diag_c[iCol] = sqrt(diag_c[iCol]);
+//         }
+        
+//         for(int iRow = 0 ; iRow < num_rows; iRow ++ ){
+//             diag_r[iRow] = sqrt(diag_r[iRow]);
+//         }
+
+//         //Double check the diagonal matricies values
+//         // cout << "vector diag_r is: \n";
+//         // vectorPrint(diag_r);
+//         // cout << "vector diag_c is: \n";
+//         // vectorPrint(diag_c);
+
+        
+
+//         //A sense check to verify the diagonal matricies aren't identity as they wouldnt change anything
+//         // vector<double> idr.assign(num_rows, 1);
+//         //assert(diag_r != idr);
+//         // vector<double> idc.assign(num_cols, 1);
+//         //assert(diag_c != idc);
+//         // if(diag_r == idr) break;
+
+//         //Code to check the values of the diagonal matricies (Useful if looking at artificial matrix t)
+//         // vector<int> id_4_index = {0,1,2,3};
+//         // vector<int> id_4_start = {0,1,2,3,4};
+//         // vector<int> id_5_index = {0,1,2,3,4};
+//         // vector<int> id_5_start = {0,1,2,3,4,5};
+//         // vector<vector<double>> mat_diag_r = sparseColumn_to_full(id_4_start, id_4_index, diag_r);
+//         // vector<vector<double>> mat_diag_c = sparseColumn_to_full(id_5_start, id_5_index, diag_c);
+//         // cout << "matrix diag_r is: \n";
+//         // matPrint(mat_diag_r);
+//         // cout << "matrix diag_c is: \n";
+//         // matPrint(mat_diag_c);
+        
+
+//        //Multiply the values of A~ = A_k * D_C^-1
+//         for(int iCol = 0; iCol < num_cols; iCol ++){
+//             for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl ++){
+//                 scaled_matrix_values[iEl] = scaled_matrix_values[iEl]*(1/diag_c[iCol]);
+//                 // printf("we are multiplying %g and %g \t",matrix_values[iEl], diag_c[iCol]); //Verify the multiplication
+//             }            
+//        }
+//         //Verify the value of matrix A_tilde
+//         // cout << "matrix A_tilde is: \n";
+//         // vector<vector<double>> mat_A_til = sparseColumn_to_full(matrix_start, matrix_index, scaled_matrix_values);
+//         // matPrint(mat_A_til);
+//         // cout<<endl;
+
+//         //Now multiplying the  A_hat = D_R^-1 * A~     
+//         for(int iCol = 0 ; iCol < num_cols; iCol ++ ){
+//             for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol +1]; iEl++){
+//                 double value = scaled_matrix_values[iEl];
+//                 scaled_matrix_values[iEl] = value*(1/diag_r[matrix_index[iEl]]);    
+//             }   
+//         }
+//         //Verify the value of matrix A_hat
+//         // vector<vector<double>> mat_A_hat = sparseColumn_to_full(matrix_start, matrix_index, scaled_matrix_values);
+//         // cout << "matrix a_hat is: \n";
+//         // matPrint(mat_A_hat);
+
+//         // //Set the matrix values for the next iteration
+//         // for(int index = 0; index < num_nonZeros; index ++){
+//         //     matrix_values[index] = scaled_matrix_values[index];
+//         // }
+
+//         double max_dr = 0;
+//         double max_dc = 0;
+        
+//         //Set the d_r values for the next iteration
+//         for(int iCol = 0; iCol < num_cols; iCol ++){
+//             d_c[iCol] = d_c[iCol]*(1/diag_c[iCol]); 
+//             max_dc = max(diag_c[iCol], max_dc);
+
+//         }
+//         for(int iRow = 0; iRow < num_rows; iRow ++){
+//             d_r[iRow] = d_r[iRow]*(1/diag_r[iRow]);
+//             max_dr = max(diag_r[iRow], max_dr);
+//         }
+//         printf("In iteration %i the max of D_rk is %g and the max of D_ck is %g", rescale_iterations, max_dr, max_dc);
+        
+//         // cout << "vector aaaaaaaa d_r is: \n";
+//         // vectorPrint(d_r);
+//         // cout << "vector d_c is: \n";
+//         // vectorPrint(d_c);
+
+//         rrScale = 0;
+//         rescale_iterations++;
+//         //rrScale = needRuizRescale(); 
+//         cout<<endl;
+//         //printf("rrScale is %i \n", rrScale);
+//         if(rescale_iterations > 20) break;
+//         // if(rescale_iterations > 10E3) break;    
 //     }
-//     //return result;
-//
+//     cout << "vector d_r is: \n";
+//     vectorPrint(d_r);
+//     cout << "vector d_c is: \n";
+//     vectorPrint(d_c);
+//     printf("The Ruiz Rescaling went through %i iterations and rrScale at %i \n", rescale_iterations, rrScale);
+//     cout << endl << endl;
+//     printf("The scaled matrix values are: \n");
+//         vectorPrint(scaled_matrix_values);
+//     //A sense check:
+//     for(int index = 0; index < num_nonZeros; index++ ){
+//         if(scaled_matrix_values[index] > 1) printf("Index %i \t ", index);
+//     }
+//     cout<<endl;
 // }
