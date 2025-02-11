@@ -11,6 +11,7 @@
 #include <math.h>
 #include <cassert>
 #include <cmath>
+#include <fstream>
 // #include Highs.h
 
 using namespace std;
@@ -66,6 +67,7 @@ void PDLP::assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<d
     reducedCosts.assign(num_cols, 0);
     feasibility_tolerance = 10E-4;
     primal_feasibility_tolerance = 10E-3;
+    iter_cap = 2.5E6;
     // matrix_norm = matrixNorm();
     // step_size = 1/matrix_norm;
     // initialiseNorms();
@@ -253,10 +255,21 @@ void PDLP::runFeasiblePDHG(bool outputFlag, bool debugFlagValue)
         up = isFeasible();
         iterations ++;
     }
-    if(rescale_status) unScaleLP();
+    if(outputFlag ==1) {
+        printf("Restarted PDHG ran with %i iterations \n", iterations);
+        printf("For the scaled model we have: \n");
+        printObjectiveValue();
+    }
+    if(rescale_status){
+        unScaleLP();
+        calculateReducedCosts();
+        isDualFeasible();
+        isPrimalFeasible();
+        isComplementarity();
+    } 
     // if(!rescale_status) vectorPrint(x_k);
     getObjectiveValue();
-    if(outputFlag ==1) printf("Restarted PDHG ran with %i iterations \n", iterations);
+    printf("After scaling back we have: \n");
 }
 
 void PDLP::getObjectiveValue()
@@ -275,7 +288,8 @@ void PDLP::printObjectiveValue()
     if(!up) cout << "Make sure you have Run the model \n"; 
     else
     {
-        printf("Obj, Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %g, %i, %g, %i, %g , %g \n", objectiveValue,iterations, complementarity, isDualFeasible(), (primal_2_norm), primal_relative_error);
+        printf("Obj, Iterations, adjusted_Complmentarity, Dual feasibility, and Primal relative feasibility is:  %g, %i, %g, %g, %g \n", objectiveValue, iterations, adjusted_complementarity, dual_inf_norm, primal_relative_error);
+        // printf("Obj, Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %g, %i, %g, %i, %g , %g \n", objectiveValue,iterations, complementarity, isDualFeasible(), (primal_2_norm), primal_relative_error);
         //printf("Our optimal objective value is: %g \n", objectiveValue);
     }   
 }
@@ -314,18 +328,15 @@ void PDLP::restartSolve()
 void PDLP::calculateReducedCosts()
 {
     vector<double> AtYt(num_cols, 0);
-    for (int iCol = 0; iCol < num_cols; iCol++)
-    {
+    for (int iCol = 0; iCol < num_cols; iCol++){
         double value = 0;
-        for (int columnK = matrix_start[iCol]; columnK < matrix_start[iCol + 1]; columnK++)
-        {
+        for (int columnK = matrix_start[iCol]; columnK < matrix_start[iCol + 1]; columnK++){
             int iRow = matrix_index[columnK];
             value += matrix_values[columnK] * y_k[iRow];
         }
         AtYt[iCol] = value;
     }
-    for(int iCol = 0; iCol < num_cols; iCol++)
-    {
+    for(int iCol = 0; iCol < num_cols; iCol++){
         reducedCosts[iCol] = costs[iCol] - AtYt[iCol]; 
     }
 }
@@ -350,22 +361,42 @@ bool PDLP::isPrimalFeasible()
         primal_2_norm += pow(absolute_error, 2);
     } 
 
-    primal_relative_error = sqrt(primal_2_norm)/bounds_2_norm;
-    if (sqrt(primal_2_norm) > primal_feasibility_tolerance && primal_relative_error > primal_feasibility_tolerance) return false;  // Not feasible
+    primal_relative_error = sqrt(primal_2_norm)/(1+bounds_2_norm);
+    // primal_relative_error = sqrt(primal_2_norm);
+    // if (primal_relative_error > primal_feasibility_tolerance*(1+bounds_2_norm)) return false;  // Not feasible
+    if (primal_relative_error > primal_feasibility_tolerance) return false;  // Not feasible
     return true;  // Primal feasible
 }
 
-bool PDLP::isDualFeasible()
-{
+/******************* 
+This version of the Dual feasibilty takes the inf_norm 
+********************/
+bool PDLP::isDualFeasible() {
     bool dual_feasibility = 0; 
-    dual_inf_norm = -1; 
-    for(int iCol = 0; iCol < num_cols; iCol++ ){
-        dual_inf_norm = max(reducedCosts[iCol], dual_inf_norm); 
+    dual_inf_norm = 100; 
+    for(int iCol = 0; iCol < num_cols; iCol++ ){       
+        dual_inf_norm = min(reducedCosts[iCol], dual_inf_norm); 
         // if((reducedCosts[iCol]/costs_2_norm) < -feasibility_tolerance) return false;
     }
-    if(dual_inf_norm < -feasibility_tolerance) return false;
+    if(dual_inf_norm < -feasibility_tolerance*(1+ costs_2_norm)) return false;
     return true;
 }
+/******************* 
+This version of the Dual feasibilty takes the two_norm 
+********************/
+// bool PDLP::isDualFeasible(){
+//     dual_inf_norm = 0;
+//     double dual_feasibility = 0; 
+//     for(int iCol = 0; iCol < num_cols; iCol++ ){       
+//         dual_feasibility += pow(reducedCosts[iCol], 2);
+//     }
+
+//     dual_inf_norm = sqrt(dual_feasibility);
+//     if(dual_inf_norm > feasibility_tolerance*(1+ costs_2_norm)) return false;
+//     return true;
+// }
+
+
 bool PDLP::isComplementarity(){
     complementarity = 0;
     adjusted_complementarity = 0; 
@@ -374,7 +405,9 @@ bool PDLP::isComplementarity(){
         adjusted_complementarity += x_k[iCol]*abs(reducedCosts[iCol]/costs_2_norm);
     }
 
-    if (complementarity < feasibility_tolerance) return true;  
+    if (adjusted_complementarity < feasibility_tolerance) return true;  
+    
+
     return false; 
 }
 bool PDLP::isFeasible(){
@@ -386,12 +419,14 @@ bool PDLP::isFeasible(){
         isPrimalFeasible(); isDualFeasible(); isComplementarity();
         //printf("After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal absolute(2-norm) feasibility is %g and relative is %g \n", iterations, complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
         //printf("Iterations, Complementarity, Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %i, %g, %i, %g , %g \n", iterations, complementarity, isDualFeasible(), (primal_2_norm), primal_relative_error);
-        printf("Obj, Iterations, Complementarity, adjusted_Complmentarity Dual feasibility, Primal absolute(2-norm) feasibility, and Primal relative is:  %g, %i, %g, %g, %i, %g , %g \n", objectiveValue,iterations, complementarity, adjusted_complementarity, isDualFeasible(), sqrt(primal_2_norm), primal_relative_error);
+        // printf("Obj, Iterations, Complementarity, adjusted_Complmentarity, Dual feasibility, and Primal relative feasibility is:  %g, %i, %g, %g, %g, %g \n", objectiveValue,iterations, complementarity, adjusted_complementarity, dual_inf_norm, primal_relative_error);
+        printf("Obj, Iterations, adjusted_Complmentarity, Dual feasibility, and Primal relative feasibility is:  %g, %i, %g, %g, %g \n", objectiveValue,iterations, adjusted_complementarity, dual_inf_norm, primal_relative_error);
 
         //vectorPrint(reducedCosts);
     }
-    if(iterations > 2.5E6) {
-        printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal feasibility is %i \n", iterations, complementarity, isDualFeasible(), isPrimalFeasible());
+    if(iterations > iter_cap) {
+        // printf("YOU DIDNT CONVERGE: After %i iterations, Complementarity is %g, Dual feasibility is %i, Primal feasibility is %i \n", iterations, complementarity, isDualFeasible(), isPrimalFeasible());
+        printf("Obj, Iterations, Complementarity, adjusted_Complmentarity, Dual feasibility, and Primal relative feasibility is:  %g, %i, %g, %g, %g, %g \n", objectiveValue,iterations, complementarity, adjusted_complementarity, dual_inf_norm, primal_relative_error);
         printDebug();
         return true;
     }    
@@ -541,7 +576,22 @@ void PDLP::ruiz_Rescale(){
     // printf("The scaled matrix values are: \n");
     // vectorPrint(scaled_matrix_values);
     //A sense check :
+    vector<double> sense_check(num_nonZeros);
+    for(int iCol = 0; iCol < num_cols; iCol ++){
+        for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol + 1]; iEl ++){
+            sense_check[iEl] =  matrix_values[iEl]*d_c[iCol];
+        }            
+    }
+    for(int iCol = 0 ; iCol < num_cols; iCol ++ ){
+            for(int iEl = matrix_start[iCol]; iEl < matrix_start[iCol +1]; iEl++){
+                double value = sense_check[iEl];
+                double multiplier = d_r[matrix_index[iEl]];
+                sense_check[iEl] = value*(multiplier);    
+        }   
+    }
+    
     for(int index = 0; index < num_nonZeros; index++ ){
+        if(abs(scaled_matrix_values[index]-sense_check[index]) > 1E-2) printf("Index %i with the difference %g \t ", index, abs(scaled_matrix_values[index]-sense_check[index]));
         if(abs(scaled_matrix_values[index]) > 1.00000000001) printf("Index %i at value %g \t ", index, abs(scaled_matrix_values[index]));
     }
     cout<<endl;
@@ -616,12 +666,15 @@ void PDLP::unScaleLP(){
     // cout << "Our scaled x_k is: " << endl;
     // vectorPrint(x_k);
     for(int iCol = 0; iCol < num_cols; iCol ++){
-        post_scaled_x_k[iCol] = (1/d_c[iCol])*x_k[iCol];
+        post_scaled_x_k[iCol] = (d_c[iCol])*x_k[iCol];
     }
     for(int iRow = 0; iRow < num_rows; iRow ++){
-        post_scaled_y_k[iRow] = (1/d_r[iRow])*y_k[iRow];
+        post_scaled_y_k[iRow] = (d_r[iRow])*y_k[iRow];
     }
     bounds = orignal_bounds;
+    costs = orignal_costs; 
+    x_k = post_scaled_x_k;
+    y_k = post_scaled_y_k;
     // cout << "Our post scaled x_k is: " << endl;
     // vectorPrint(post_scaled_x_k);
     // // cout << "Bounds are back to: \n";
