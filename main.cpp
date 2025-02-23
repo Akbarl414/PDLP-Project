@@ -104,9 +104,9 @@ int main(int argc, const char *argv[])
       Run my PDLP version currently commented out until finished debug
     *******************************************/
 
-    printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
-    
-    cout<< "PDLP class test \n";
+    // printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
+    bool chamPock = 0; 
+    printf("PDLP class test on %s \n", model.c_str());
     PDLP model1;
     model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start);
     debugFlag = 0;
@@ -118,15 +118,18 @@ int main(int argc, const char *argv[])
       max_iterations = stod(argv[5]);
       model1.iter_cap = max_iterations;   
     }
-
     // printf("argv 3 is %s and the debug const char is %s \n", argv[3], debug);
     if(strcmp(debug, input3) == 0) debugFlag = 1;
-   
-
+    model1.debugFlag = debugFlag; 
+    if(argc > 6 && stod(argv[6]) != 0) {
+      chamPock = stoi(argv[6]);
+      model1.chamPockStatus = chamPock;   
+    }
     if(argc > 4){
         input4 = argv[4];
         if(strcmp(rescale, input4) == 0){
-        printf("Running the RuizRescaling method \n");
+        model1.statusRescale = 1; 
+        printf("Running Rescaling \n");
         model1.run_Rescale();
         } 
     } 
