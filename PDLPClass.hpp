@@ -25,6 +25,8 @@ class PDLP
     vector<double> x_k1;
     vector<double> y_k;
     vector<double> y_k1;
+    vector<double> x_k_result;
+    vector<double> y_k_result;
     vector<double> d_c;
     vector<double> d_r;
     vector<double> diag_c;
@@ -36,12 +38,18 @@ class PDLP
     bool debugFlag = 0;
     bool statusRescale = 0; 
     bool chamPockStatus;
+    string model;
+    string filePath;
+    double rrescale_iter_cap = 10; 
+    bool flatten_step_size = false;
+    bool alternate_Scaling = false;
+
 
 
 
     void assignLpValues(int &num_row, int &num_col, int &num_nonZero, vector<double> &cost,
                         vector<double> &bound, vector<double> &lp_matrix_values, vector<int> &lp_matrix_index, 
-                        vector<int> &lp_matrix_start);
+                        vector<int> &lp_matrix_start,  string modelName, string filePathName);
     void initialiseModel();
     void runPDHG(bool outputFlag = 1);
     void runFeasiblePDHG(bool outputFlag = 1, bool debugFlag = 0);
@@ -50,7 +58,7 @@ class PDLP
     void ruiz_Rescale();
     void run_Rescale();
     void chamPock_Rescale();
-
+    void writeFile(double &runTime);
 
 
 
@@ -61,6 +69,7 @@ class PDLP
     vector<double> reducedCosts;
     double feasibility_tolerance;
     double primal_feasibility_tolerance;
+    double dual_feasibility_tolerance;
     double primal_relative_error;
     double primal_2_norm;
     double complementarity;
@@ -72,6 +81,7 @@ class PDLP
     double dualityGap;
     double step_balance;
     
+
     
     vector<double> post_scaled_x_k;
     vector<double> post_scaled_y_k;
@@ -102,7 +112,13 @@ class PDLP
     void inverse_sqrt(vector<double> &vect);
     void scaleLP();
     void unScaleLP();
-
+    void chamPock_Rescale_alternate();
+    void scale_Column(vector<double> &scalingVector);
+    void scale_Row(vector<double> &scalingVector);
+    void addResults();
+    void ruiz_Rescale_alternate();
+    double adaptive_step();
+    double primal_weight_norm(vector<double> &x, vector<double> &x_hash, vector<double> &y, vector<double> &y_hash );
 };
 
 #endif                                                                                                     

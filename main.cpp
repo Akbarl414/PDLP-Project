@@ -13,11 +13,19 @@
 #include <cassert>
 #include <fstream>
 #include "Highs.h"
+#include <chrono>
 
 using namespace std;
 
 int main(int argc, const char *argv[])
 {
+
+
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
+
     /****************************
     Declare all relevant variables
     *****************************/
@@ -33,12 +41,10 @@ int main(int argc, const char *argv[])
     /**********************************
     Assign the relevant model, use AVGAS as default instance
     ************************************/
-    if (argc < 2)
-    {
+    if (argc < 2){
         model = "avgas";
     }
-    else
-    {
+    else{
         model = argv[1];
     }
     string model_file = "/Users/akbarlatif/Desktop/scriptz/ExampleLPs/" + model + ".mps";
@@ -62,53 +68,20 @@ int main(int argc, const char *argv[])
     h.getStandardFormLp(num_cols, num_rows, num_nonZeros, offsets, c.data(),
                         b.data(), A_start.data(), A_index.data(),
                         A_value.data());
-
-
-    /*******************************************
-      It's debugging matricies time:
-    *******************************************/
     
-    //Running a test on Ruiz scaling for the matrix that I have written on my iPad that follows the form described in matrix t
-    // vector<double> t_values = {2,4,3,7,4,3,2,2,6,2,1,1,6,8};    
-    // vector<int> t_index = {0,1,2,3,0,1,2,3,0,1,3,1,2,3};
-    // vector<int> t_start = {0,4,8,11,12,14};
-    // num_rows = 4;
-    // num_cols = 5;
-    // num_nonZeros = 14;
-
-    // vector<double> p_values = {1,1,2420,1.58};
-    // vector<int> p_index = {0,1,0,1};
-    // vector<int> p_start = {0,2,4};    
-    // num_rows = 2;
-    // num_cols = 2;
-    // num_nonZeros = 4;
-    
-
-    // PDLP rTest;
-    // //Sense check that the algorithm works with a non-square matrix:
-    //rTest.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, t_values, t_index, t_start);
-    //rTest.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, p_values, p_index, p_start);
-
-
-    // //Now a test with the matrix values of a model's matrix
-    // rTest.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start);
-        
-    // rTest.ruiz_Rescale();
-
-
-    /*******************************************
-      End the debugging
-    *******************************************/
-
    /*******************************************
-      Run my PDLP version currently commented out until finished debug
+      Run my PDLP version 
     *******************************************/
 
-    // printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
+    printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
     bool chamPock = 0; 
-    printf("PDLP class test on %s \n", model.c_str());
+    // printf("PDLP class test on %s \n", model.c_str());
+    string filePathName = "Alternative Scaling test"; 
+    auto t1 = high_resolution_clock::now();
     PDLP model1;
-    model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start);
+    model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start, model, filePathName);
+    
+    model1.model = model;
     debugFlag = 0;
     const char *debug = "debug";
     const char *rescale = "rescale";
@@ -125,25 +98,46 @@ int main(int argc, const char *argv[])
       chamPock = stoi(argv[6]);
       model1.chamPockStatus = chamPock;   
     }
+    if(argc > 7 && stod(argv[7]) != 0) {
+      double rr_iter_cap = stod(argv[7]);
+      model1.rrescale_iter_cap = rr_iter_cap;   
+    }
+    if(argc > 8 && stoi(argv[8]) != 0) {
+      model1.flatten_step_size = true;   
+    }
+    if(argc > 9 && stoi(argv[9]) != 0) {
+      model1.alternate_Scaling = true;   
+      // printf("alternate_scaling is %i", model1.alternate_Scaling);
+    }
     if(argc > 4){
         input4 = argv[4];
         if(strcmp(rescale, input4) == 0){
         model1.statusRescale = 1; 
-        printf("Running Rescaling \n");
+        // printf("Running Rescaling \n");
         model1.run_Rescale();
         } 
     } 
     //This initialiseModel() function is made to make the ||A||_2 norm be in terms of the scaled matrix, but I'm not sure if it works 
-    model1.initialiseModel();
     if(argc > 2 && stod(argv[2]) != 0) {
         s = stod(argv[2]);
         model1.step_size = s;   
     }
+    
+    model1.initialiseModel();
+   
     model1.runFeasiblePDHG(1, debugFlag);
     //model1.runPDHG();
     model1.printObjectiveValue();
-    cout << "end of test \n";
-
+    // cout << "end of test \n";
+    auto t2 = high_resolution_clock::now();
+    auto ms_int = duration_cast<milliseconds>(t2 - t1);
+    /* Getting number of milliseconds as a double. */
+    duration<double, std::milli> ms_double = t2 - t1;
+    std::cout << ms_double.count()/1000 << "s\n";
+    double runTime = ms_double.count();
+    model1.writeFile(runTime);
+    // string k = typeid(ms_double.count()).name();
+    // cout << k << endl;
 
     /*************************************************
     Using HiGHS to solve the current model as our sense check
@@ -175,7 +169,7 @@ int main(int argc, const char *argv[])
                         value.data());
 
     HighsLp standard_form_lp;
-    printf("Num of HiGHS rows %i, Num of HiGHS cols %i \n", num_row, num_col);
+    // printf("Num of HiGHS rows %i, Num of HiGHS cols %i \n", num_row, num_col);
     standard_form_lp.num_col_ = num_col;
     standard_form_lp.num_row_ = num_row;
     standard_form_lp.offset_ = offset;
@@ -200,7 +194,7 @@ int main(int argc, const char *argv[])
     // assert(rel_objective_function_value_diff < 1e-10);
     h.run();
     HighsSolution solution = h.getSolution();
-
+    cout << endl;
     // if(debugFlag)
     // {
     //     for(int iCol =0; iCol < num_cols; iCol++)
