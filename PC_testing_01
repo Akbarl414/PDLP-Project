@@ -1,0 +1,56 @@
+./a.out share2b 0 0 rescale 0 0
+./a.out share2b 0 0 rescale 0 1
+./a.out lotfi 0 0 rescale 0 0
+./a.out lotfi 0 0 rescale 0 1 
+./a.out vtp.base 0 0 rescale 0 0
+./a.out vtp.base 0 0 rescale 0 1 
+./a.out forplan 0 0 rescale 0 0
+./a.out forplan 0 0 rescale 0 1
+./a.out tuff 0 0 rescale 0 0
+./a.out tuff 0 0 rescale 0 1
+./a.out stair 0 0 rescale 0 0
+./a.out stair 0 0 rescale 0 1
+./a.out scrs8 0 0 rescale 0 0
+./a.out scrs8 0 0 rescale 0 1
+./a.out scfxm2 0 0 rescale 0 0
+./a.out scfxm2 0 0 rescale 0 1
+./a.out pilot4 0 0 rescale 0 0
+./a.out pilot4 0 0 rescale 0 1
+./a.out afiro 0 0 rescale 0 0
+./a.out afiro 0 0 rescale 0 1
+./a.out sc50a 0 0 rescale 0 0
+./a.out sc50a 0 0 rescale 0 1
+./a.out sc50b 0 0 rescale 0 0
+./a.out sc50b 0 0 rescale 0 1
+./a.out adlittle 0 0 rescale 0 0
+./a.out adlittle 0 0 rescale 0 1
+./a.out recipe 0 0 rescale 0 0
+./a.out recipe 0 0 rescale 0 1
+./a.out sc105 0 0 rescale 0 0
+./a.out sc105 0 0 rescale 0 1
+./a.out shell 0 0 rescale 0 0
+./a.out shell 0 0 rescale 0 1
+./a.out sctap3 0 0 rescale 0 0
+./a.out sctap3 0 0 rescale 0 1
+./a.out ship08s 0 0 rescale 0 0
+./a.out ship08s 0 0 rescale 0 1
+./a.out pilot.we 0 0 rescale 0 0
+./a.out pilot.we 0 0 rescale 0 1
+./a.out ship08l 0 0 rescale 0 0
+./a.out ship08l 0 0 rescale 0 1
+./a.out ganges 0 0 rescale 0 0
+./a.out ganges 0 0 rescale 0 1
+./a.out ship04l 0 0 rescale 0 0
+./a.out ship04l 0 0 rescale 0 1
+./a.out grow7 0 0 rescale 0 0
+./a.out grow7 0 0 rescale 0 1
+./a.out ship12s 0 0 rescale 0 0
+./a.out ship12s 0 0 rescale 0 1
+./a.out sctap2 0 0 rescale 0 0
+./a.out sctap2 0 0 rescale 0 1
+./a.out sc205 0 0 rescale 0 0
+./a.out sc205 0 0 rescale 0 1
+
+
+
+
