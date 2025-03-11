@@ -17,14 +17,13 @@
 
 using namespace std;
 
-int main(int argc, const char *argv[])
-{
-
-
-    using std::chrono::high_resolution_clock;
-    using std::chrono::duration_cast;
-    using std::chrono::duration;
-    using std::chrono::milliseconds;
+int main(int argc, const char *argv[]){
+    
+    //declare the chrono uses
+    using chrono::high_resolution_clock;
+    using chrono::duration_cast;
+    using chrono::duration;
+    using chrono::milliseconds;
 
     /****************************
     Declare all relevant variables
@@ -63,7 +62,7 @@ int main(int argc, const char *argv[])
     vector<int> A_index(num_nonZeros);
     vector<int> A_start(num_cols + 1);
 
-   
+   //Use the HiGHS getStandardFormLp() to put the given model in standard form
     h.setOptionValue("output_flag", false);
     h.getStandardFormLp(num_cols, num_rows, num_nonZeros, offsets, c.data(),
                         b.data(), A_start.data(), A_index.data(),
@@ -72,72 +71,95 @@ int main(int argc, const char *argv[])
    /*******************************************
       Run my PDLP version 
     *******************************************/
-
-    printf("%i non zeros, num row = %i and num col = %i \n", num_nonZeros, num_rows, num_cols);
-    bool chamPock = 0; 
-    // printf("PDLP class test on %s \n", model.c_str());
-    string filePathName = "Alternative Scaling test"; 
-    auto t1 = high_resolution_clock::now();
-    PDLP model1;
-    model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start, model, filePathName);
+    //Print relevant information about the model
+    // printf("%s has %i non zeros, num row = %i and num col = %i \n", model.c_str(), num_nonZeros, num_rows, num_cols);
+    printf("PDLP solver test on %s \n", model.c_str()); //Declaration for running the solver
     
+    //initialize variables 
+    bool chamPock = false; //The bool for whether CP scaling will be applied
+    string filePathName = "Junk 10.03";  //File name for output 
+    auto t1 = high_resolution_clock::now(); // begin the runtime
+
+    //Initialize the model as a PDLP instance
+    PDLP model1;
+
+    //Assign the values
+    model1.assignLpValues(num_rows, num_cols, num_nonZeros, c, b, A_value, A_index, A_start, model, filePathName);
     model1.model = model;
+
+    //Create relevant for the argc parsing
     debugFlag = 0;
     const char *debug = "debug";
     const char *rescale = "rescale";
     const char *input4 = "";  
     const char *input3 = argv[3];
+
+    // Sets the iteration cap for the solver
     if(argc > 5 && stod(argv[5]) != 0) {
       max_iterations = stod(argv[5]);
       model1.iter_cap = max_iterations;   
     }
-    // printf("argv 3 is %s and the debug const char is %s \n", argv[3], debug);
+
+    //Determines wheter the debug information will be displayed
     if(strcmp(debug, input3) == 0) debugFlag = 1;
     model1.debugFlag = debugFlag; 
+    
+    //Determines wheter Chambolle-Pock scaling will be applied
     if(argc > 6 && stod(argv[6]) != 0) {
       chamPock = stoi(argv[6]);
       model1.chamPockStatus = chamPock;   
     }
+
+    //Allows the user to put in a certain amount of ruiz rescale iterations
     if(argc > 7 && stod(argv[7]) != 0) {
       double rr_iter_cap = stod(argv[7]);
       model1.rrescale_iter_cap = rr_iter_cap;   
     }
+
+    //Determines whether the primal and dual step sizes are equal
     if(argc > 8 && stoi(argv[8]) != 0) {
       model1.flatten_step_size = true;   
     }
+
+    //Determines wheter the alternative model of scaling will be applied
     if(argc > 9 && stoi(argv[9]) != 0) {
       model1.alternate_Scaling = true;   
-      // printf("alternate_scaling is %i", model1.alternate_Scaling);
+
     }
+
+    //Determines whether the solver will be run with or without rescaling
     if(argc > 4){
         input4 = argv[4];
         if(strcmp(rescale, input4) == 0){
         model1.statusRescale = 1; 
-        // printf("Running Rescaling \n");
         model1.run_Rescale();
         } 
     } 
-    //This initialiseModel() function is made to make the ||A||_2 norm be in terms of the scaled matrix, but I'm not sure if it works 
+
+    //Allows the user to input a certain stepsize
     if(argc > 2 && stod(argv[2]) != 0) {
         s = stod(argv[2]);
         model1.step_size = s;   
     }
     
+    //initializes norms and stepsizes
     model1.initialiseModel();
    
+    //Runs the model until an optimal value is found
     model1.runFeasiblePDHG(1, debugFlag);
-    //model1.runPDHG();
+
+    //Prints the optimal objective value
     model1.printObjectiveValue();
-    // cout << "end of test \n";
+
+    //Stops the runtime once the optimal value is displayed
     auto t2 = high_resolution_clock::now();
     auto ms_int = duration_cast<milliseconds>(t2 - t1);
-    /* Getting number of milliseconds as a double. */
     duration<double, std::milli> ms_double = t2 - t1;
     std::cout << ms_double.count()/1000 << "s\n";
     double runTime = ms_double.count();
+    
+    //Writes the optimal solution value as well as number of iterations and runtime to a csv file
     model1.writeFile(runTime);
-    // string k = typeid(ms_double.count()).name();
-    // cout << k << endl;
 
     /*************************************************
     Using HiGHS to solve the current model as our sense check
@@ -191,24 +213,10 @@ int main(int argc, const char *argv[])
            original_objective_function_value,
            objective_function_value,
            rel_objective_function_value_diff);
-    // assert(rel_objective_function_value_diff < 1e-10);
     h.run();
     HighsSolution solution = h.getSolution();
     cout << endl;
-    // if(debugFlag)
-    // {
-    //     for(int iCol =0; iCol < num_cols; iCol++)
-    //     {
-    //     if (cost[iCol] != 0 && solution.col_value[iCol] != model1.x_k[iCol])
-    //         printf("HiGHS gets %g while PDLP gets %g which is a %g difference \n",solution.col_value[iCol], model1.x_k[iCol], abs(solution.col_value[iCol] - model1.x_k[iCol]));
-    //     }
-
-    // }
-    
-    // for (HighsInt iCol = 0; iCol < num_col; iCol++)
-    //     printf("Col %1d has optimal primal value %g; dual value %g\n", int(iCol), solution.col_value[iCol], solution.col_dual[iCol]);
-    // for (HighsInt iRow = 0; iRow < num_row; iRow++)
-    //     printf("Row %1d has optimal primal value %g; dual value %g\n", int(iRow), solution.row_value[iRow], solution.row_dual[iRow]);
+   
 }
    
 
