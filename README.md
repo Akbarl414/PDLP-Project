@@ -12,7 +12,7 @@ The goal of the project is to experiment with restarted PDHG variants and scalin
 The solver handles LPs in standard form:
 
 $$
-\min_{x \ge 0} \; c^T x 
+\min_{x \ge 0}  c^T x 
 \quad \text{s.t.} \quad 
 Ax = b
 $$
@@ -20,7 +20,7 @@ $$
 The corresponding dual problem is:
 
 $$
-\max_y \; b^T y 
+\max_y  b^T y 
 \quad \text{s.t.} \quad 
 A^T y \le c
 $$
@@ -223,7 +223,7 @@ After PDHG finishes, the same model is solved with HiGHS.
 
 The relative objective difference is reported as:
 
-$$|z_{\text{HiGHS}} - z_{\text{PDLP}}| / max(1, |z_{\text{HiGHS}}|)$$
+$$|z_{\text{HiGHS}} - z_{\text{PDLP}}| / \max(1, |z_{\text{HiGHS}}|)$$
 
 This acts as a correctness check.
 
