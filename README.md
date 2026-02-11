@@ -34,7 +34,7 @@ Each iteration performs the standard PDHG updates:
 ### Primal step
 
 $$
-x^{k+1} = \max\left(0,\; x^k + \tau (A^T y^k - c)\right)
+x^{k+1} = \max\left(0, x^k + \tau (A^T y^k - c)\right)
 $$
 
 ### Dual step
